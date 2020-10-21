@@ -1,5 +1,5 @@
-#Besedni zaklad na spletnem portalu 4chan
-========================================
+# Besedni zaklad na spletnem portalu 4chan
+
 
 Analiziral bom različne "boarde" in objave na le-teh ter sestavil slovar besed glede na njihovo uporabljenost.
 Omejil se bom na tiste, kategorizirane z "Interests", "Creative", pa tudi "Random" in "Politically incorrect".
