@@ -1,0 +1,11 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "python run file",
+            "type": "shell",
+            "command": "python3 -i \"${file}\"",
+            "problemMatcher": []
+        }
+    ]
+}
