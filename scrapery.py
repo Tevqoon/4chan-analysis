@@ -4,12 +4,13 @@ import os
 import pandas as pd
 import re
 
-TEST_DOWNLOAD = False
-REAL_DOWNLOAD = False
-BACKUP = True
+DOWNLOAD = True
+REDOWNLOAD = False
+RESTITCH = True
 
-boards = ["pol", "b", "co", "g", "tv", "k", "o", "an", "sp", "asp", "sci", "his", "int", "out", "toy", "po", "ck", "lit", "mu"]
-wanted_attributes = ["no", "resto", "now", "country", "country_name", "com", "replies", "board"]
+boards = ["pol", "b", "co", "g", "tv", "k", "o", "an", "sp", "asp", "sci", "his", "int", "out", "toy", "po", "ck", "lit", "mu", "v", "r9k", "a"]
+wanted_attributes = ["no", "resto", "now", "country_name", "com", "replies", "board"]
+
 
 #the main function of this program - gets all the posts of a given board by 
 #downloading individual threads and stitching them together in a predictable manner
@@ -17,7 +18,7 @@ wanted_attributes = ["no", "resto", "now", "country", "country_name", "com", "re
 #the optional arguments are mostly for debugging and are not intended to be changed,
 #at least not for the current application.
 
-#we take advantage of 4chan's json api, which allows us to avoid unnecessary hurdles in 
+#we take advantage of 4chan's json api, which allows us to avoid unnecessary hurdles insofar as
 #vulgar regexing and such. By using pandas to import the json we avoid more unpleasantries still.
 def process_board(board_tag, save=True, reports=True, keep_individual_threads=False, 
                   sleep_between_requests=1, include_no_replies=False, 
@@ -83,9 +84,9 @@ def process_board(board_tag, save=True, reports=True, keep_individual_threads=Fa
     #we also return the frame itself for convenience - especially useful if we don't wish to commit the files to disk.
     return total_frame
 
-#    
 
-#we are interested in textual analysis, so we strip unnecessary symbols and numbers
+#we are interested in textual analysis, so we strip unnecessary symbols and such
+#stripping html first allows us to also avoid the alphabetical tags inside
 def dequote_and_desymbolize(post_contents):
     try:
         html_remover = r"<.+>"
@@ -93,50 +94,47 @@ def dequote_and_desymbolize(post_contents):
         combine_whitespace = r"\s+"
 
         desymbolized = re.sub(html_remover, " ", post_contents)
-        desymbolized = re.sub(desymbolizer, " ", post_contents)
-        desymbolized = re.sub(combine_whitespace, " ", desymbolized).strip()
+        desymbolized = re.sub(desymbolizer, " ", desymbolized)
+        desymbolized = re.sub(combine_whitespace, " ", desymbolized).strip().lower()
         
         return desymbolized
     except:
         return None
 
 
-#a small test download for debugging and such
-if TEST_DOWNLOAD:
-    board = process_board("pol", max_threads=5)
-    board["com"] = board["com"].apply(dequote_and_desymbolize)
-    board = board[wanted_attributes]
-
-
 #we download all threads in all of the wanted boards, then stich them together into a single dataframe,
-#not unlike what we do with posts and threads - we store the original board id likewise the thread id
-if REAL_DOWNLOAD:
-    posts = []
-    for board in boards:
-        posts.append(process_board(board))
-    total_frame = pd.concat(posts, ignore_index=True)
+#not unlike what we do with posts and threads - we store the original board id, likewise the thread id.
+#if a board is already downloaded, we by default use the saved data
+posts = []
+todo = []
 
+#if not redownoading, we load the boards we've already saved
+if not REDOWNLOAD:
+    while boards:
+        board = boards.pop()
+        try:
+            fr = pd.read_csv("data/boards/" + board + "/" + board + "_combined.csv")
+            fr.com = fr.com.apply(dequote_and_desymbolize)
+            posts.insert(0, fr)
+        except Exception:
+            todo.append(board)
+else:
+    todo = boards
+
+#and process the new boards to add
+if DOWNLOAD:
+    print("Processing " + str(len(todo)) + " new boards.")
+    for board in todo:
+        posts.append(process_board(board))
+
+if RESTITCH:    
+    total_frame = pd.concat(posts, ignore_index=True)
     #processing entails prettifying the text and keeping only wished attributes
     total_frame["com"] = total_frame["com"].apply(dequote_and_desymbolize)
     total_frame = total_frame[wanted_attributes]
-    
+
     #this we do want to write to disk, as it will be used by our analysis program
-    csv = total_frame.to_csv()
+    csv = total_frame.to_csv(index=False)
     with open("data/datasets/total_dataset.csv", "w") as f:
         f.write(csv)
 
-
-#backup functions, allowing one to recover from an unsuccessful stitching attempt from the collected and saved posts.
-def frame_from_files():
-    frames = []
-    for board in boards:
-        with open("data/boards/" + board + "/" + board + "_combined.csv") as f:
-            frames.append(pd.read_csv(f))
-    return pd.concat(frames, ignore_index=True)
-
-if BACKUP:
-    frame = frame_from_files()
-    frame["com"] = frame["com"].apply(dequote_and_desymbolize)
-    frame = frame[wanted_attributes]
-    with open("data/datasets/total_dataset.csv", "w") as f:
-        f.write(frame.to_csv())
